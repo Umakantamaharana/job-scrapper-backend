@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Scraper Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        h1 {
+            color: #2c3e50;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .btn-scrape {
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+
+        .btn-scrape:hover {
+            background-color: #1a252f;
+        }
+
+        .btn-scrape:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            flex-grow: 1;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 20px;
+            background-color: #bdc3c7;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #3498db;
+            width: 0%;
+            transition: width 0.3s;
+            animation: pulse 2s infinite;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            text-align: center;
+            line-height: 20px;
+            font-size: 0.85em;
+            color: #fff;
+            text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.8;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.8;
+            }
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background-color: #34495e;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+            min-width: 90px;
+            text-align: center;
+        }
+
+        .status-published {
+            background-color: #dcedc8;
+            color: #27ae60;
+        }
+
+        .status-unpublished {
+            background-color: #ffe0b2;
+            color: #d35400;
+        }
+
+        .status-generated {
+            background-color: #bbdefb;
+            color: #2980b9;
+        }
+
+        .status-toggle {
+            cursor: pointer;
+            margin-left: 5px;
+            color: #7f8c8d;
+            transition: color 0.2s;
+        }
+
+        .status-toggle:hover {
+            color: #27ae60;
+        }
+
+        .status-toggle.active {
+            color: #27ae60;
+        }
+
+        .post-content {
+            max-height: 100px;
+            overflow-y: auto;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            text-decoration: none;
+            color: white;
+        }
+
+        .btn-copy {
+            background-color: #7f8c8d;
+        }
+
+        .btn-copy:hover {
+            background-color: #626567;
+        }
+
+        .btn-post {
+            background-color: #2980b9;
+        }
+
+        .btn-post:hover {
+            background-color: #2471a3;
+        }
+
+        .platform-cell {
+            min-width: 200px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Job Scraper Dashboard</h1>
+
+    <div class="controls">
+        <button id="scrapeBtn" class="btn-scrape" onclick="startScrape()">
+            <i class="fas fa-sync"></i> Start Scraper
+        </button>
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 100%"></div>
+                <div class="progress-text" id="progressText">Idle</div>
+            </div>
+        </div>
+        <div style="margin-left: auto; color: #7f8c8d; font-size: 0.9em;" id="lastUpdated"></div>
+    </div>
+
+    <table id="jobsTable">
+        <thead>
+            <tr>
+                <th style="width: 50px;">ID</th>
+                <th style="width: 80px;">Link</th>
+                <th style="width: 120px;">Status</th>
+                <th>X (Twitter)</th>
+                <th>LinkedIn</th>
+                <th>Facebook</th>
+                <th>Instagram</th>
+                <th>WhatsApp</th>
+                <th>Threads</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rows will be populated by JS -->
+        </tbody>
+    </table>
+
+    <script>
+        // Poll for progress updates
+        setInterval(checkProgress, 1000);
+        // Initial load
+        loadJobs();
+
+        async function loadJobs() {
+            try {
+                const response = await fetch('/api/jobs');
+                const jobs = await response.json();
+                renderTable(jobs);
+                document.getElementById('lastUpdated').innerText = 'Synced: ' + new Date().toLocaleTimeString();
+            } catch (e) {
+                console.error("Failed to load jobs", e);
+            }
+        }
+
+        async function startScrape() {
+            try {
+                const btn = document.getElementById('scrapeBtn');
+                btn.disabled = true;
+                const response = await fetch('/api/scrape', { method: 'POST' });
+                const res = await response.json();
+                if (res.status === 'error') {
+                    alert(res.message);
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                console.error("Failed to start scrape", e);
+                document.getElementById('scrapeBtn').disabled = false;
+            }
+        }
+
+        async function checkProgress() {
+            try {
+                const response = await fetch('/api/progress');
+                const state = await response.json();
+
+                const btn = document.getElementById('scrapeBtn');
+                const progressContainer = document.getElementById('progressContainer');
+                const progressText = document.getElementById('progressText');
+
+                if (state.is_running) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+                    progressContainer.style.display = 'block';
+                    progressText.innerText = state.progress;
+
+                    // Periodically reload table data to show new incoming jobs
+                    if (Date.now() % 5000 < 1000) loadJobs();
+                } else {
+                    if (btn.disabled) {
+                        // Finished
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-sync"></i> Start Scraper';
+                        progressContainer.style.display = 'none';
+                        loadJobs(); // Final reload
+                    }
+                }
+            } catch (e) {
+                console.error("Error checking progress", e);
+            }
+        }
+
+        async function toggleStatus(id, currentStatus) {
+            let newStatus;
+            if (currentStatus === 'PUBLISHED') {
+                newStatus = 'GENERATED'; // Toggle back? Or stays published. User requested "tick it and status will be updated as published"
+            } else {
+                newStatus = 'PUBLISHED';
+            }
+
+            try {
+                const response = await fetch('/api/update_status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, status: newStatus })
+                });
+
+                if (response.ok) {
+                    loadJobs();
+                } else {
+                    alert("Failed to update status");
+                }
+            } catch (e) {
+                console.error("Error updating status", e);
+            }
+        }
+
+        function renderTable(jobs) {
+            const tbody = document.querySelector('#jobsTable tbody');
+            tbody.innerHTML = ''; // Clear existing
+
+            // Sort by ID desc
+            jobs.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+
+            jobs.forEach(job => {
+                const tr = document.createElement('tr');
+
+                // Status Logic
+                let statusClass = 'status-unpublished';
+                let isChecked = false;
+                if (job.status === 'PUBLISHED') {
+                    statusClass = 'status-published';
+                    isChecked = true;
+                } else if (job.status === 'GENERATED') {
+                    statusClass = 'status-generated';
+                }
+
+                const checkIcon = isChecked ? '<i class="fas fa-check-circle"></i>' : '<i class="far fa-check-circle"></i>';
+
+                tr.innerHTML = `
+                    <td>${job.id}</td>
+                    <td><a href="${job.href}" target="_blank">View Job</a></td>
+                    <td>
+                        <div class="status-badge ${statusClass}">
+                            ${job.status}
+                        </div>
+                        <span class="status-toggle ${isChecked ? 'active' : ''}" onclick="toggleStatus('${job.id}', '${job.status}')" title="Mark as Published">
+                           ${checkIcon}
+                        </span>
+                    </td>
+                `;
+
+                const platforms = [
+                    { key: 'x', url: 'https://twitter.com/intent/tweet?text=' },
+                    { key: 'ln', url: 'https://www.linkedin.com/feed/?shareActive=true&text=' },
+                    { key: 'fb', url: 'https://www.facebook.com/sharer/sharer.php?u=' + job.href + '&quote=' },
+                    { key: 'ig', url: '' },
+                    { key: 'wp', url: 'https://wa.me/?text=' },
+                    { key: 'th', url: 'https://www.threads.net/intent/post?text=' }
+                ];
+
+                platforms.forEach(p => {
+                    const content = job[p.key] || '';
+                    const encodedContent = encodeURIComponent(content);
+                    let actionBtns = '';
+
+                    if (content) {
+                        // Copy Button
+                        // We use a safe way to pass content string to onclick
+                        actionBtns += `<button onclick="copyText(this)" data-text="${content.replace(/"/g, '&quot;')}" class="btn btn-copy"><i class="fas fa-copy"></i> Copy</button> `;
+
+                        // Post Button
+                        if (p.url) {
+                            let finalUrl = p.url + encodedContent;
+                            if (p.key === 'fb') {
+                                // For FB, the quote param is used
+                            }
+                            actionBtns += `<a href="${finalUrl}" target="_blank" class="btn btn-post"><i class="fas fa-share-square"></i> Post</a>`;
+                        }
+                    }
+
+                    tr.innerHTML += `
+                        <td class="platform-cell">
+                            <div class="post-content">${content.length > 200 ? content.substring(0, 200) + '...' : content}</div>
+                            <div class="action-buttons">${actionBtns}</div>
+                        </td>
+                    `;
+                });
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function copyText(btn) {
+            const text = btn.getAttribute('data-text');
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => btn.innerHTML = originalHtml, 2000);
+            });
+        }
+    </script>
+</body>
+
+</html>
