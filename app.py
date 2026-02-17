@@ -1,7 +1,7 @@
 import os
 import threading
 from flask import Flask, render_template, jsonify, request
-from scraper import process_jobs, get_jobs_json, update_job_status, CSV_PATH
+from scraper import process_jobs, get_jobs_json, update_job_status, update_job_link, JSON_PATH
 
 app = Flask(__name__, template_folder=".")
 
@@ -28,11 +28,6 @@ def run_scraper_thread():
 
 @app.route("/")
 def index():
-    # We will use the existing index.html but modified for interactivity
-    # Or validly, we can serve a new template.
-    # Since the plan said "Serve index.html", and we are in the same dir,
-    # we can use send_file or render_template if it's jinja ready.
-    # But we are rewriting index.html to be an SPA.
     return render_template("index.html")
 
 @app.route("/api/jobs")
@@ -63,6 +58,17 @@ def update_status():
         return jsonify({"status": "success"})
     else:
         return jsonify({"status": "error", "message": "Failed to update status"}), 500
+
+@app.route("/api/update_link", methods=["POST"])
+def update_link():
+    data = request.json
+    job_id = data.get("id")
+    new_link = data.get("link")
+    
+    if update_job_link(job_id, new_link):
+        return jsonify({"status": "success"})
+    else:
+        return jsonify({"status": "error", "message": "Failed to update link"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

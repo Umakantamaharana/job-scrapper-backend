@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import pandas as pd
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -13,7 +14,7 @@ from google import genai
 load_dotenv()
 
 # Configuration
-CSV_PATH = "latest_jobs.csv"
+JSON_PATH = "latest_jobs.json"
 BASE_URL = "https://www.freejobalert.com/"
 
 def setup_driver():
@@ -38,54 +39,64 @@ def fetch_job_links(driver):
     
     return list(set(links)) # Deduplicate
 
-def update_csv(new_links):
-    columns = ["id", "href", "status", "x", "ln", "fb", "ig", "th", "wp"]
-    
-    # Initialize df with explicit types to avoid warnings
-    df = pd.DataFrame(columns=columns)
-    
-    if os.path.exists(CSV_PATH):
+def load_jobs():
+    if os.path.exists(JSON_PATH):
         try:
-            df = pd.read_csv(CSV_PATH)
-        except pd.errors.EmptyDataError:
-             pass
+            with open(JSON_PATH, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return []
+    return []
+
+def save_jobs(jobs):
+    with open(JSON_PATH, "w") as f:
+        json.dump(jobs, f, indent=2)
     
-    # Standardize columns
-    for col in columns:
-        if col not in df.columns:
-            df[col] = ""
-            
-    existing_links = set(df["href"].tolist())
+    # Sync to frontend
+    frontend_path = "../daily-job-updates/public/latest_jobs.json"
+    if os.path.exists("../daily-job-updates/public"):
+        try:
+            with open(frontend_path, "w") as f:
+                json.dump(jobs, f, indent=2)
+            print(f"Synced to {frontend_path}")
+        except Exception as e:
+            print(f"Failed to sync to frontend: {e}")
+
+def update_json(new_links):
+    jobs = load_jobs()
+    existing_links = {job["href"] for job in jobs}
     
-    new_entries = []
     # Determine next ID safely
-    if not df.empty and "id" in df.columns and pd.notna(df["id"].max()):
+    current_max_id = 0
+    if jobs:
         try:
-            current_max_id = int(df["id"].max())
-        except:
+            current_max_id = max(int(job["id"]) for job in jobs)
+        except ValueError:
             current_max_id = 0
-    else:
-        current_max_id = 0
     
+    new_entries_count = 0
     for link in new_links:
         if link not in existing_links:
             current_max_id += 1
-            new_entries.append({
-                "id": current_max_id,
+            new_job = {
+                "id": str(current_max_id),
                 "href": link,
                 "status": "UNPUBLISHED",
-                "x": "", "ln": "", "fb": "", "ig": "", "th": "", "wp": ""
-            })
+                "website_content": {},
+                "social_posts": {
+                    "x": "", "ln": "", "fb": "", "ig": "", "th": "", "wp": ""
+                }
+            }
+            jobs.append(new_job)
+            new_entries_count += 1
             
-    if new_entries:
-        new_df = pd.DataFrame(new_entries)
-        combined_df = pd.concat([df, new_df], ignore_index=True)
-        combined_df.to_csv(CSV_PATH, index=False)
-        print(f"Added {len(new_entries)} new jobs to CSV.")
-        return combined_df
+    if new_entries_count > 0:
+        save_jobs(jobs)
+        print(f"Added {new_entries_count} new jobs to JSON.")
     else:
         print("No new jobs found.")
-        return df
+        
+    return jobs
 
 def extract_content(html):
     soup = BeautifulSoup(html, "html.parser")
@@ -107,31 +118,33 @@ def extract_content(html):
         return content
     return ""
 
-def generate_social_post(content, client):
+def generate_content_and_posts(content, client):
     if not content:
         return None
         
-    prompt = """You are a social media manager. Generate engaging posts for the following platforms based on the job description provided.
-    
-    Platforms:
-    1. X (Twitter): Max 200 characters, include hashtags.
-    2. LinkedIn: Professional tone, bullet points for key details, include hashtags.
-    3. Facebook: Engaging, slightly longer than X, include hashtags.
-    4. Instagram: Visually descriptive caption, many hashtags.
-    5. WhatsApp: Short, direct, clear call to action.
-    6. Threads: Similar to X but can be slightly more conversational.
-    
-    Job Description:
+    prompt = """You are a content strategist and social media manager. 
+    1. Extract structued data for a job board website from the raw text.
+    2. Generate engaging social media posts.
+
+    Raw Job Description:
     {content}
     
-    Output valid JSON only. Do not include markdown formatting like ```json ... ```. Just the raw JSON object.
+    Output a valid JSON object with the following structure. Do NOT include markdown formatting.
     {{
-        "x": "...",
-        "ln": "...",
-        "fb": "...",
-        "ig": "...",
-        "wp": "...",
-        "th": "..."
+      "website_content": {{
+        "title": "Concise Job Title",
+        "markdown_content": "Full job description formatted in clean Markdown. Include key details like formatting dates, fees, age limits, etc. Do NOT include the official link here.",
+        "actual_link": "The official application or notification URL found in the text. If not found, leave empty string.",
+        "action": "One (or two words) call to action button text, e.g., 'Apply Now', 'View Notification', 'Check Result'"
+      }},
+      "social_posts": {{
+        "x": "Twitter post (max 200 chars) with hashtags.",
+        "ln": "LinkedIn post (professional, bullet points).",
+        "fb": "Facebook post (engaging).",
+        "ig": "Instagram caption (visual, hashtags).",
+        "wp": "WhatsApp message (short, direct).",
+        "th": "Threads post (conversational)."
+      }}
     }}
     """
     
@@ -145,254 +158,113 @@ def generate_social_post(content, client):
         print(f"Error generating content: {e}")
         return None
 
-def generate_index_html(df):
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Job Scraper Output</title>
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-        <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
-            h1 { color: #2c3e50; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); background: white; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; }
-            th { background-color: #34495e; color: white; position: sticky; top: 0; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            tr:hover { background-color: #f1f1f1; }
-            .status-published { color: #27ae60; font-weight: bold; }
-            .status-unpublished { color: #d35400; font-weight: bold; }
-            .status-generated { color: #2980b9; font-weight: bold; }
-            .post-content { max-height: 100px; overflow-y: auto; font-size: 0.9em; margin-bottom: 8px; white-space: pre-wrap; }
-            .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
-            .btn { border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; color: white; }
-            .btn-copy { background-color: #7f8c8d; }
-            .btn-copy:hover { background-color: #626567; }
-            .btn-post { background-color: #2980b9; }
-            .btn-post:hover { background-color: #2471a3; }
-            .platform-cell { min-width: 200px; }
-        </style>
-        <script>
-            function copyToClipboard(text) {
-                navigator.clipboard.writeText(text).then(() => {
-                    alert('Copied to clipboard!');
-                }).catch(err => {
-                    console.error('Failed to copy: ', err);
-                });
-            }
-        </script>
-    </head>
-    <body>
-        <h1>Job Scraper Dashboard</h1>
-        <p>Last updated: """ + time.strftime("%Y-%m-%d %H:%M:%S") + """</p>
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 50px;">ID</th>
-                    <th style="width: 80px;">Link</th>
-                    <th style="width: 100px;">Status</th>
-                    <th>X (Twitter)</th>
-                    <th>LinkedIn</th>
-                    <th>Facebook</th>
-                    <th>Instagram</th>
-                    <th>WhatsApp</th>
-                    <th>Threads</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
-    
-    import urllib.parse
-    
-    for _, row in df.iterrows():
-        if row["status"] == "PUBLISHED":
-            status_class = "status-published"
-        elif row["status"] == "GENERATED":
-            status_class = "status-generated"
-        else:
-            status_class = "status-unpublished"
-            
-        html_content += f"""
-                <tr>
-                    <td>{row['id']}</td>
-                    <td><a href="{row['href']}" target="_blank">View Job</a></td>
-                    <td class="{status_class}">{row['status']}</td>
-        """
-        
-        platforms = [
-            ('x', 'https://twitter.com/intent/tweet?text='),
-            ('ln', 'https://www.linkedin.com/feed/?shareActive=true&text='), # LinkedIn text sharing is tricky via URL, often just URL sharing
-            ('fb', 'https://www.facebook.com/sharer/sharer.php?u=' + row['href'] + '&quote='),
-            ('ig', ''), # No direct web intent for IG post
-            ('wp', 'https://wa.me/?text='),
-            ('th', 'https://www.threads.net/intent/post?text=')
-        ]
-        
-        for platform_key, intent_base in platforms:
-            content = str(row.get(platform_key, ''))
-            if content == 'nan': content = ''
-            
-            encoded_content = urllib.parse.quote(content)
-            encoded_url = urllib.parse.quote(row['href'])
-            
-            post_btn_html = ""
-            if intent_base and content:
-                 # Special handling for FB which prefers URL param
-                if platform_key == 'fb':
-                     final_url = intent_base + encoded_content
-                elif platform_key == 'ln':
-                     # LinkedIn text + url often works better in simple text param for some clients, but sharing URL is standard.
-                     # We'll try passing text.
-                     final_url = intent_base + encoded_content
-                else:
-                     final_url = intent_base + encoded_content
-                
-                post_btn_html = f'<a href="{final_url}" target="_blank" class="btn btn-post"><i class="fas fa-share-square"></i> Post</a>'
-            
-            copy_btn_html = ""
-            if content:
-                # Escape single quotes for JS string
-                js_safe_content = content.replace("'", "\\'").replace("\n", "\\n")
-                copy_btn_html = f'<button onclick="copyToClipboard(\'{js_safe_content}\')" class="btn btn-copy"><i class="fas fa-copy"></i> Copy</button>'
-
-            html_content += f"""
-                    <td class="platform-cell">
-                        <div class="post-content">{content[:200] + '...' if len(content) > 200 else content}</div>
-                        <div class="action-buttons">
-                            {copy_btn_html}
-                            {post_btn_html}
-                        </div>
-                    </td>
-            """
-            
-        html_content += "</tr>"
-        
-    html_content += """
-            </tbody>
-        </table>
-    </body>
-    </html>
-    """
-    
-    with open("index.html", "w") as f:
-        f.write(html_content)
-    print("Updated index.html")
-
 def update_job_status(job_id, new_status):
-    if os.path.exists(CSV_PATH):
-        try:
-            df = pd.read_csv(CSV_PATH)
-            # Ensure ID is treated as int/string consistently
-            df["id"] = df["id"].astype(str) 
-            job_id = str(job_id)
-            
-            if job_id in df["id"].values:
-                idx = df[df["id"] == job_id].index[0]
-                df.at[idx, "status"] = new_status
-                df.to_csv(CSV_PATH, index=False)
-                return True
-        except Exception as e:
-            print(f"Error updating status: {e}")
+    jobs = load_jobs()
+    updated = False
+    for job in jobs:
+        if job["id"] == str(job_id):
+            job["status"] = new_status
+            updated = True
+            break
+    if updated:
+        save_jobs(jobs)
+        return True
+    return False
+
+def update_job_link(job_id, new_link):
+    jobs = load_jobs()
+    updated = False
+    for job in jobs:
+        if job["id"] == str(job_id):
+            if "website_content" not in job:
+                job["website_content"] = {}
+            job["website_content"]["actual_link"] = new_link
+            updated = True
+            break
+    if updated:
+        save_jobs(jobs)
+        return True
     return False
 
 def get_jobs_json():
-    columns = ["id", "href", "status", "x", "ln", "fb", "ig", "th", "wp"]
-    if os.path.exists(CSV_PATH):
-        try:
-            df = pd.read_csv(CSV_PATH)
-            # Check for missing columns and add them if necessary
-            for col in columns:
-                if col not in df.columns:
-                    df[col] = ""
-            return df.fillna("").to_dict(orient="records")
-        except Exception:
-            return []
-    return []
+    return load_jobs()
 
 def process_jobs(progress_callback=None):
     driver = setup_driver()
-    RATE_LIMIT_DELAY = 2.5 # Seconds, ensures < 30 RPM
+    RATE_LIMIT_DELAY = 2.5 # Seconds
     MAX_RETRIES = 3
     
     try:
         # 1. Fetch and update links
         if progress_callback: progress_callback("Fetching job links...")
         links = fetch_job_links(driver)
-        df = update_csv(links)
+        jobs = update_json(links)
         
-        # 2. Process unpublished jobs OR generated jobs with missing content
-        # We process UNPUBLISHED, or GENERATED ones that might have failed (empty X post)
-        mask = (df["status"] == "UNPUBLISHED") | \
-               ((df["status"] == "GENERATED") & (df["x"].isnull() | (df["x"] == "")))
-        indices_to_process = df[mask].index
+        # 2. Identify jobs to process (UNPUBLISHED or GENERATED but incomplete)
+        # For simplicity, we process UNPUBLISHED. If you want to re-process incomplete ones, add logic.
+        jobs_to_process = [job for job in jobs if job["status"] == "UNPUBLISHED"]
         
-        total_jobs = len(indices_to_process)
+        total_jobs = len(jobs_to_process)
         if total_jobs == 0:
-            print("No new or incomplete jobs to process.")
+            print("No new jobs to process.")
             if progress_callback: progress_callback("No new jobs to process.")
             return
 
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
-            print("GOOGLE_API_KEY not found. Skipping social media post generation.")
+            print("GOOGLE_API_KEY not found. Skipping content generation.")
             client = None
         else:
             client = genai.Client(api_key=api_key)
 
-        for i, idx in enumerate(indices_to_process):
-            row = df.loc[idx]
-            url = row["href"]
+        for i, job in enumerate(jobs_to_process):
+            url = job["href"]
+            job_id = job["id"]
             msg = f"Processing {i+1}/{total_jobs}: {url}"
             print(msg)
             if progress_callback: progress_callback(msg)
             
-            # Enforce Rate Limit
             time.sleep(RATE_LIMIT_DELAY)
             
             try:
                 driver.get(url)
-                time.sleep(3) # Wait for page load
+                time.sleep(3) 
                 content = extract_content(driver.page_source)
                 
                 if content:
-                    posts = None
+                    generated_data = None
                     if client:
-                        # Retry logic for API call and JSON parsing
                         for attempt in range(MAX_RETRIES):
                             try:
-                                posts_json_str = generate_social_post(content, client)
-                                if posts_json_str:
+                                json_str = generate_content_and_posts(content, client)
+                                if json_str:
                                     import json
-                                    # Clean up potential markdown code blocks
-                                    clean_json = posts_json_str.replace("```json", "").replace("```", "").strip()
-                                    posts = json.loads(clean_json)
-                                    break # Success, exit retry loop
+                                    clean_json = json_str.replace("```json", "").replace("```", "").strip()
+                                    generated_data = json.loads(clean_json)
+                                    break
                                 else:
-                                    print(f"Attempt {attempt+1}: No response from API.")
+                                    print(f"Attempt {attempt+1}: No response.")
                             except json.JSONDecodeError as e:
-                                print(f"Attempt {attempt+1}: JSON Parse Error for {url}: {e}")
+                                print(f"Attempt {attempt+1}: JSON Parse Error: {e}")
                             except Exception as e:
-                                print(f"Attempt {attempt+1}: API Error for {url}: {e}")
-                            
-                            time.sleep(2) # Backoff before retry
+                                print(f"Attempt {attempt+1}: API Error: {e}")
+                            time.sleep(2)
                     
-                    if posts:
-                        print(f"Generated Posts for {url}")
-                        df.at[idx, "x"] = posts.get("x", "")
-                        df.at[idx, "ln"] = posts.get("ln", "")
-                        df.at[idx, "fb"] = posts.get("fb", "")
-                        df.at[idx, "ig"] = posts.get("ig", "")
-                        df.at[idx, "wp"] = posts.get("wp", "")
-                        df.at[idx, "th"] = posts.get("th", "")
-                        # Mark as GENERATED instead of PUBLISHED so user sees it needs action
-                        df.at[idx, "status"] = "GENERATED"
+                    if generated_data:
+                        print(f"Generated Data for {url}")
+                        # Update the job object in memory
+                        # We need to find the job in the main 'jobs' list to update it persistently
+                        # (since 'job' loop var might be a copy or we want to save full list)
+                        for mutable_job in jobs:
+                            if mutable_job["id"] == job_id:
+                                mutable_job["website_content"] = generated_data.get("website_content", {})
+                                mutable_job["social_posts"] = generated_data.get("social_posts", {})
+                                mutable_job["status"] = "GENERATED"
+                                break
+                        
+                        save_jobs(jobs)
                     else:
-                        print(f"Failed to generate posts for {url} after {MAX_RETRIES} attempts.")
-                    
-                    # Save immediately to avoid data loss
-                    df.to_csv(CSV_PATH, index=False)
+                        print(f"Failed to generate data for {url}")
                 else:
                     print("No content extracted.")
             except Exception as e:
@@ -405,3 +277,4 @@ def process_jobs(progress_callback=None):
 
 if __name__ == "__main__":
     process_jobs()
+
