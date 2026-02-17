@@ -129,7 +129,12 @@ def generate_content_and_posts(content, client):
     Raw Job Description:
     {content}
     
-    Output a valid JSON object with the following structure. Do NOT include markdown formatting.
+    Output a valid JSON object with the following structure. 
+    IMPORTANT: 
+    - website_content.markdown_content MUST be in Markdown.
+    - social_posts content MUST be Pure Plain Text. Do NOT use markdown.
+    - If an 'actual_link' is found, you MUST include it in every social_post (e.g., "Apply: [Link]" or "More info: [Link]").
+    
     {{
       "website_content": {{
         "title": "Concise Job Title",
@@ -138,12 +143,12 @@ def generate_content_and_posts(content, client):
         "action": "One (or two words) call to action button text, e.g., 'Apply Now', 'View Notification', 'Check Result'"
       }},
       "social_posts": {{
-        "x": "Twitter post (max 200 chars) with hashtags.",
-        "ln": "LinkedIn post (professional, bullet points).",
-        "fb": "Facebook post (engaging).",
-        "ig": "Instagram caption (visual, hashtags).",
-        "wp": "WhatsApp message (short, direct).",
-        "th": "Threads post (conversational)."
+        "x": "Twitter post (max 200 chars) with hashtags and the link. Plain text only.",
+        "ln": "LinkedIn post (professional, bullet points using hyphens or emojis). Include the link. Plain text only.",
+        "fb": "Facebook post (engaging). Include the link. Plain text only.",
+        "ig": "Instagram caption (visual, hashtags). Include the link (for 'link in bio' context). Plain text only.",
+        "wp": "WhatsApp message (short, direct) with the link. Plain text only.",
+        "th": "Threads post (conversational) with the link. Plain text only."
       }}
     }}
     """

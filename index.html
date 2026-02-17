@@ -240,6 +240,7 @@
                 <th style="width: 50px;">ID</th>
                 <th style="width: 80px;">Link</th>
                 <th style="width: 120px;">Status</th>
+                <th style="width: 250px;">Website Content</th>
                 <th>X (Twitter)</th>
                 <th>LinkedIn</th>
                 <th>Facebook</th>
@@ -342,6 +343,25 @@
             }
         }
 
+        async function updateLink(id, newLink) {
+            try {
+                const response = await fetch('/api/update_link', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, link: newLink })
+                });
+
+                if (response.ok) {
+                    alert("Link updated!");
+                    loadJobs();
+                } else {
+                    alert("Failed to update link");
+                }
+            } catch (e) {
+                console.error("Error updating link", e);
+            }
+        }
+
         function renderTable(jobs) {
             const tbody = document.querySelector('#jobsTable tbody');
             tbody.innerHTML = ''; // Clear existing
@@ -364,16 +384,28 @@
 
                 const checkIcon = isChecked ? '<i class="fas fa-check-circle"></i>' : '<i class="far fa-check-circle"></i>';
 
+                const ws = job.website_content || {};
+                const title = ws.title || 'No Title';
+                const actualLink = ws.actual_link || '';
+                const action = ws.action || 'Apply';
+
                 tr.innerHTML = `
                     <td>${job.id}</td>
-                    <td><a href="${job.href}" target="_blank">View Job</a></td>
+                    <td><a href="${job.href}" target="_blank">Original</a></td>
                     <td>
-                        <div class="status-badge ${statusClass}">
-                            ${job.status}
-                        </div>
                         <span class="status-toggle ${isChecked ? 'active' : ''}" onclick="toggleStatus('${job.id}', '${job.status}')" title="Mark as Published">
                            ${checkIcon}
                         </span>
+                    </td>
+                    <td class="website-content-cell">
+                        <strong>${title}</strong><br>
+                        <small style="color: grey;">Action: ${action}</small>
+                        <div class="editable-link" style="margin-top: 5px; display: flex; gap: 5px;">
+                            <input type="text" value="${actualLink}" id="link-${job.id}" placeholder="Official URL" style="width: 100%; padding: 4px;">
+                            <button class="btn btn-edit" style="background-color: #f39c12; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;" onclick="updateLink('${job.id}', document.getElementById('link-${job.id}').value)">
+                                <i class="fas fa-save"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
 
@@ -387,7 +419,7 @@
                 ];
 
                 platforms.forEach(p => {
-                    const content = job[p.key] || '';
+                    const content = job.social_posts ? (job.social_posts[p.key] || '') : '';
                     const encodedContent = encodeURIComponent(content);
                     let actionBtns = '';
 
@@ -419,6 +451,7 @@
         }
 
         function copyText(btn) {
+            // ... (keep existing)
             const text = btn.getAttribute('data-text');
             navigator.clipboard.writeText(text).then(() => {
                 const originalHtml = btn.innerHTML;
