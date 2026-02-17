@@ -103,14 +103,51 @@
             margin-top: 20px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             background: white;
+            table-layout: fixed;
+            /* Fixed layout for better control */
         }
 
         th,
         td {
             border: 1px solid #ddd;
-            padding: 12px;
+            padding: 8px;
+            /* Reduced padding */
             text-align: left;
             vertical-align: top;
+            overflow: hidden;
+            /* Hide spillover */
+        }
+
+        /* Scrollable cell content wrapper */
+        .cell-content {
+            max-height: 150px;
+            overflow: auto;
+            /* Both vertical and horizontal if needed */
+            white-space: pre-wrap;
+            /* Wrap text but preserve whitespace */
+            word-break: break-word;
+            /* Break long words */
+            scrollbar-width: thin;
+            /* Firefox */
+        }
+
+        /* Webkit scrollbar styling */
+        .cell-content::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .cell-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .cell-content::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+
+        .cell-content::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
 
         th {
@@ -118,102 +155,134 @@
             color: white;
             position: sticky;
             top: 0;
+            z-index: 10;
         }
 
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
+        /* Column Widths */
+        .col-id {
+            width: 40px;
         }
 
-        tr:hover {
-            background-color: #f1f1f1;
+        .col-link {
+            width: 50px;
+        }
+
+        .col-status {
+            width: 50px;
+        }
+
+        .col-website {
+            width: 300px;
+        }
+
+        /* Wider */
+        .col-social {
+            width: 200px;
+        }
+
+        .editable-link {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .editable-link input {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.9em;
         }
 
         .status-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 0.9em;
-            min-width: 90px;
-            text-align: center;
+            display: none;
         }
 
-        .status-published {
-            background-color: #dcedc8;
-            color: #27ae60;
+        /* Kept hidden as requested */
+
+        .platform-cell {
+            min-width: 150px;
+            /* display: flex removed to preserve table-cell behavior */
+            height: 100%;
+            /* To fill the td height if td allows */
         }
 
-        .status-unpublished {
-            background-color: #ffe0b2;
-            color: #d35400;
+        /* Fix for table-layout: fixed with flex cells in some browsers (Chrome/Firefox handle td display:flex reasonably well now, 
+           but to be safe, we might apply this to a wrapper div if needed. 
+           However, let's try applying to td directly as requested for simplicity first, 
+           or better yet, simply rely on the fact that we are truncating text so height is predictable, 
+           BUT if we really want bottom alignment regardless of row height, we need the cell to stretch. */
+
+        td {
+            height: 1px;
+            /* Trick to make cells stretch to row height */
         }
 
-        .status-generated {
-            background-color: #bbdefb;
-            color: #2980b9;
+        /* We need a wrapper inside td to expand */
+        .cell-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            justify-content: space-between;
+            min-height: 80px;
+            /* Ensure some height */
         }
 
-        .status-toggle {
-            cursor: pointer;
-            margin-left: 5px;
-            color: #7f8c8d;
-            transition: color 0.2s;
-        }
-
-        .status-toggle:hover {
-            color: #27ae60;
-        }
-
-        .status-toggle.active {
-            color: #27ae60;
-        }
-
-        .post-content {
-            max-height: 100px;
-            overflow-y: auto;
-            font-size: 0.9em;
-            margin-bottom: 8px;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
+        /* Button Styling */
         .action-buttons {
             display: flex;
-            gap: 5px;
+            gap: 8px;
             flex-wrap: wrap;
         }
 
         .btn {
             border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
+            padding: 6px 12px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 0.85em;
             display: inline-flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
             text-decoration: none;
             color: white;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
 
         .btn-copy {
-            background-color: #7f8c8d;
+            background: linear-gradient(135deg, #7f8c8d 0%, #626567 100%);
         }
 
         .btn-copy:hover {
-            background-color: #626567;
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
         }
 
         .btn-post {
-            background-color: #2980b9;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
         }
 
         .btn-post:hover {
-            background-color: #2471a3;
+            background: linear-gradient(135deg, #5dade2 0%, #3498db 100%);
         }
 
-        .platform-cell {
-            min-width: 200px;
+        .btn-edit {
+            background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
+        }
+
+        .btn-edit:hover {
+            background: linear-gradient(135deg, #f1c40f 0%, #e67e22 100%);
         }
     </style>
 </head>
@@ -237,16 +306,16 @@
     <table id="jobsTable">
         <thead>
             <tr>
-                <th style="width: 50px;">ID</th>
-                <th style="width: 80px;">Link</th>
-                <th style="width: 120px;">Status</th>
-                <th style="width: 250px;">Website Content</th>
-                <th>X (Twitter)</th>
-                <th>LinkedIn</th>
-                <th>Facebook</th>
-                <th>Instagram</th>
-                <th>WhatsApp</th>
-                <th>Threads</th>
+                <th class="col-id">ID</th>
+                <th class="col-link">Link</th>
+                <th class="col-status">Status</th>
+                <th class="col-website">Website Content</th>
+                <th class="col-social">X (Twitter)</th>
+                <th class="col-social">LinkedIn</th>
+                <th class="col-social">Facebook</th>
+                <th class="col-social">Instagram</th>
+                <th class="col-social">WhatsApp</th>
+                <th class="col-social">Threads</th>
             </tr>
         </thead>
         <tbody>
@@ -389,9 +458,9 @@
                 const actualLink = ws.actual_link || '';
                 const action = ws.action || 'Apply';
 
-                tr.innerHTML = `
+                let rowHtml = `
                     <td>${job.id}</td>
-                    <td><a href="${job.href}" target="_blank">Original</a></td>
+                    <td><a href="${job.href}" target="_blank" class="btn btn-post" style="padding: 5px 8px;" title="Open Original Link"><i class="fas fa-external-link-alt"></i></a></td>
                     <td>
                         <span class="status-toggle ${isChecked ? 'active' : ''}" onclick="toggleStatus('${job.id}', '${job.status}')" title="Mark as Published">
                            ${checkIcon}
@@ -418,6 +487,7 @@
                     { key: 'th', url: 'https://www.threads.net/intent/post?text=' }
                 ];
 
+                // Add platform cells
                 platforms.forEach(p => {
                     const content = job.social_posts ? (job.social_posts[p.key] || '') : '';
                     const encodedContent = encodeURIComponent(content);
@@ -425,37 +495,39 @@
 
                     if (content) {
                         // Copy Button
-                        // We use a safe way to pass content string to onclick
                         actionBtns += `<button onclick="copyText(this)" data-text="${content.replace(/"/g, '&quot;')}" class="btn btn-copy"><i class="fas fa-copy"></i> Copy</button> `;
 
                         // Post Button
                         if (p.url) {
                             let finalUrl = p.url + encodedContent;
-                            if (p.key === 'fb') {
-                                // For FB, the quote param is used
-                            }
-                            actionBtns += `<a href="${finalUrl}" target="_blank" class="btn btn-post"><i class="fas fa-share-square"></i> Post</a>`;
+                            // Ensure it looks exactly like a button
+                            actionBtns += `<a href="${finalUrl}" target="_blank" class="btn btn-post" role="button" style="display: inline-flex; text-decoration: none;"><i class="fas fa-share-square"></i> Post</a>`;
                         }
                     }
 
-                    tr.innerHTML += `
+                    // Truncate to 60 chars for display
+                    const displayContent = content.length > 60 ? content.substring(0, 60) + '...' : content;
+
+                    rowHtml += `
                         <td class="platform-cell">
-                            <div class="post-content">${content.length > 200 ? content.substring(0, 200) + '...' : content}</div>
-                            <div class="action-buttons">${actionBtns}</div>
+                            <div class="cell-wrapper">
+                                <div class="cell-content" style="max-height: none; overflow: visible;">${displayContent}</div>
+                                <div class="action-buttons" style="margin-top: auto; padding-top: 8px;">${actionBtns}</div>
+                            </div>
                         </td>
                     `;
                 });
 
+                tr.innerHTML = rowHtml;
                 tbody.appendChild(tr);
             });
         }
 
         function copyText(btn) {
-            // ... (keep existing)
             const text = btn.getAttribute('data-text');
             navigator.clipboard.writeText(text).then(() => {
                 const originalHtml = btn.innerHTML;
-                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                btn.innerHTML = '<i class="fas fa-check"></i>';
                 setTimeout(() => btn.innerHTML = originalHtml, 2000);
             });
         }
