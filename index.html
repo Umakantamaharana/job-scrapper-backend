@@ -284,6 +284,34 @@
         .btn-edit:hover {
             background: linear-gradient(135deg, #f1c40f 0%, #e67e22 100%);
         }
+
+        /* Load More Button Styles */
+        .load-more-container {
+            text-align: center;
+            margin: 20px 0;
+            padding-bottom: 20px;
+        }
+
+        .btn-load-more {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            padding: 10px 30px;
+            font-size: 1em;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-load-more:hover {
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
     </style>
 </head>
 
@@ -323,7 +351,18 @@
         </tbody>
     </table>
 
+    <div class="load-more-container">
+        <button id="loadMoreBtn" class="btn-load-more" onclick="renderNextBatch()" style="display: none;">
+            Load More <i class="fas fa-chevron-down"></i>
+        </button>
+    </div>
+
     <script>
+        // Global state for pagination
+        let allJobs = [];
+        let displayedCount = 0;
+        const BATCH_SIZE = 100;
+
         // Poll for progress updates
         setInterval(checkProgress, 1000);
         // Initial load
@@ -333,10 +372,39 @@
             try {
                 const response = await fetch('/api/jobs');
                 const jobs = await response.json();
-                renderTable(jobs);
+
+                // Sort by ID desc
+                jobs.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+
+                allJobs = jobs;
+                displayedCount = 0;
+
+                // Clear table
+                document.querySelector('#jobsTable tbody').innerHTML = '';
+
+                // Render first batch
+                renderNextBatch();
+
                 document.getElementById('lastUpdated').innerText = 'Synced: ' + new Date().toLocaleTimeString();
             } catch (e) {
                 console.error("Failed to load jobs", e);
+            }
+        }
+
+        function renderNextBatch() {
+            const nextBatch = allJobs.slice(displayedCount, displayedCount + BATCH_SIZE);
+            if (nextBatch.length > 0) {
+                renderBatch(nextBatch);
+                displayedCount += nextBatch.length;
+            }
+
+            // Toggle Load More button
+            const btn = document.getElementById('loadMoreBtn');
+            if (displayedCount < allJobs.length) {
+                btn.style.display = 'inline-flex';
+                btn.innerText = `Load More (${allJobs.length - displayedCount} remaining)`;
+            } else {
+                btn.style.display = 'none';
             }
         }
 
@@ -372,6 +440,7 @@
                     progressText.innerText = state.progress;
 
                     // Periodically reload table data to show new incoming jobs
+                    // Note: This might reset pagination view, which is acceptable during scrape
                     if (Date.now() % 5000 < 1000) loadJobs();
                 } else {
                     if (btn.disabled) {
@@ -403,7 +472,13 @@
                 });
 
                 if (response.ok) {
-                    loadJobs();
+                    // Update local state without full reload to preserve scroll/pagination
+                    const jobIndex = allJobs.findIndex(j => j.id === id);
+                    if (jobIndex > -1) {
+                        allJobs[jobIndex].status = newStatus;
+                        // Reload jobs to reflect UI changes (resets view but ensures consistency)
+                        loadJobs();
+                    }
                 } else {
                     alert("Failed to update status");
                 }
@@ -422,7 +497,12 @@
 
                 if (response.ok) {
                     alert("Link updated!");
-                    loadJobs();
+                    // Update local state
+                    const jobIndex = allJobs.findIndex(j => j.id === id);
+                    if (jobIndex > -1) {
+                        if (!allJobs[jobIndex].website_content) allJobs[jobIndex].website_content = {};
+                        allJobs[jobIndex].website_content.actual_link = newLink;
+                    }
                 } else {
                     alert("Failed to update link");
                 }
@@ -431,12 +511,9 @@
             }
         }
 
-        function renderTable(jobs) {
+        function renderBatch(jobs) {
             const tbody = document.querySelector('#jobsTable tbody');
-            tbody.innerHTML = ''; // Clear existing
-
-            // Sort by ID desc
-            jobs.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+            // Do NOT clear tbody here, we append
 
             jobs.forEach(job => {
                 const tr = document.createElement('tr');
@@ -478,6 +555,7 @@
                     </td>
                 `;
 
+                // Add platform cells
                 const platforms = [
                     { key: 'x', url: 'https://twitter.com/intent/tweet?text=' },
                     { key: 'ln', url: 'https://www.linkedin.com/feed/?shareActive=true&text=' },
@@ -487,7 +565,6 @@
                     { key: 'th', url: 'https://www.threads.net/intent/post?text=' }
                 ];
 
-                // Add platform cells
                 platforms.forEach(p => {
                     const content = job.social_posts ? (job.social_posts[p.key] || '') : '';
                     const encodedContent = encodeURIComponent(content);
