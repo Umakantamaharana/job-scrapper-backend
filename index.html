@@ -344,6 +344,7 @@
                 <th class="col-social">Instagram</th>
                 <th class="col-social">WhatsApp</th>
                 <th class="col-social">Threads</th>
+                <th class="col-social">Telegram</th>
             </tr>
         </thead>
         <tbody>
@@ -562,7 +563,8 @@
                     { key: 'fb', url: 'https://www.facebook.com/sharer/sharer.php?u=' + job.href + '&quote=' },
                     { key: 'ig', url: '' },
                     { key: 'wp', url: 'https://wa.me/?text=' },
-                    { key: 'th', url: 'https://www.threads.net/intent/post?text=' }
+                    { key: 'th', url: 'https://www.threads.net/intent/post?text=' },
+                    { key: 'tg', url: 'https://t.me/share/url?url=' + job.href + '&text=' }
                 ];
 
                 platforms.forEach(p => {

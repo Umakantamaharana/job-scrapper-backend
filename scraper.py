@@ -84,7 +84,7 @@ def update_json(new_links):
                 "status": "UNPUBLISHED",
                 "website_content": {},
                 "social_posts": {
-                    "x": "", "ln": "", "fb": "", "ig": "", "th": "", "wp": ""
+                    "x": "", "ln": "", "fb": "", "ig": "", "th": "", "wp": "", "tg": ""
                 }
             }
             jobs.append(new_job)
@@ -148,7 +148,8 @@ def generate_content_and_posts(content, client):
         "fb": "Facebook post (engaging). Include the link. Plain text only.",
         "ig": "Instagram caption (visual, hashtags). Include the link (for 'link in bio' context). Plain text only.",
         "wp": "WhatsApp message (short, direct) with the link. Plain text only.",
-        "th": "Threads post (conversational) with the link. Plain text only."
+        "th": "Threads post (conversational) with the link. Plain text only.",
+        "tg": "Telegram message (broadcast style, concise). Include the link. Plain text only."
       }}
     }}
     """
