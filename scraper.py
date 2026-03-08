@@ -19,11 +19,20 @@ BASE_URL = "https://www.freejobalert.com/"
 
 def setup_driver():
     options = Options()
-    # options.add_argument("--start-maximized") # Not needed for headless
+    # Required for headless execution in GitHub Actions/Linux
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
     options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--headless=new") # Uncomment if headless desired
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+    
+    # Try using webdriver_manager, but fallback to system chromedriver if needed
+    try:
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+    except Exception as e:
+        print(f"WebDriverManager failed: {e}. Trying default system chromedriver.")
+        driver = webdriver.Chrome(options=options)
+        
     return driver
 
 def fetch_job_links(driver):
@@ -51,16 +60,6 @@ def load_jobs():
 def save_jobs(jobs):
     with open(JSON_PATH, "w") as f:
         json.dump(jobs, f, indent=2)
-    
-    # Sync to frontend
-    frontend_path = "../daily-job-updates/public/latest_jobs.json"
-    if os.path.exists("../daily-job-updates/public"):
-        try:
-            with open(frontend_path, "w") as f:
-                json.dump(jobs, f, indent=2)
-            print(f"Synced to {frontend_path}")
-        except Exception as e:
-            print(f"Failed to sync to frontend: {e}")
 
 def update_json(new_links):
     jobs = load_jobs()
