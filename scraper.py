@@ -243,8 +243,16 @@ def process_jobs(progress_callback=None):
                             try:
                                 json_str = generate_content_and_posts(content, client)
                                 if json_str:
-                                    import json
-                                    clean_json = json_str.replace("```json", "").replace("```", "").strip()
+                                    # Clean up markdown code blocks if the LLM wrapped it
+                                    clean_json = json_str.strip()
+                                    if clean_json.startswith("```json"):
+                                        clean_json = clean_json[7:]
+                                    elif clean_json.startswith("```"):
+                                        clean_json = clean_json[3:]
+                                    if clean_json.endswith("```"):
+                                        clean_json = clean_json[:-3]
+                                    clean_json = clean_json.strip()
+                                    
                                     generated_data = json.loads(clean_json)
                                     break
                                 else:
